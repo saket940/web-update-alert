@@ -4,6 +4,8 @@ from email.mime.multipart import MIMEMultipart
 import requests
 import time
 from bs4 import BeautifulSoup
+import httpx
+
 
 SENDER_EMAIL = "asdadarya2222@gmail.com"
 RECEIVER_EMAIL = "rambharats963@gmail.com"
@@ -22,7 +24,8 @@ headers = {
 
 def get_clean_text():
     """Fetch site and extract clean visible text"""
-    response = requests.get(url, headers=headers)
+    with httpx.Client(headers=headers, follow_redirects=True) as client:
+        response = client.get(url)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
 
