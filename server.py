@@ -1,71 +1,66 @@
+import httpx
+import time
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import requests
-import time
-from bs4 import BeautifulSoup
-import httpx
 
-
+URL = "https://sih.gov.in/"
+CHECK_INTERVAL = 300  # seconds (5 minutes)
 SENDER_EMAIL = "asdadarya2222@gmail.com"
 RECEIVER_EMAIL = "rambharats963@gmail.com"
 APP_PASSWORD = "hcqsyrovxujbpnoj"  # Use your Gmail App Password, not your real password
 
-# === Website Setup ===
-url = "https://sih.gov.in/"
-headers = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/123.0.0.0 Safari/537.36"
-    ),
-    "Accept-Language": "en-US,en;q=0.9",
-}
+
+def send_email_alert():
+    msg = MIMEMultipart()
+    msg["From"] = SENDER_EMAIL
+    msg["To"] = RECEIVER_EMAIL
+    msg["Subject"] = "⚠️ SIH Website Updated"
+    body = "The content of https://sih.gov.in/ has changed!"
+    msg.attach(MIMEText(body, "plain"))
+
+    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        server.starttls()
+        server.login(SENDER_EMAIL, SENDER_PASSWORD)
+        server.send_message(msg)
+    print("📧 Email alert sent successfully!")
 
 def get_clean_text():
-    """Fetch site and extract clean visible text"""
-    with httpx.Client(headers=headers, follow_redirects=True) as client:
-        response = client.get(url)
-    response.raise_for_status()
-    soup = BeautifulSoup(response.text, "html.parser")
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0 Safari/537.36"
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Referer": "https://google.com",
+    }
 
-    # Remove scripts, styles, and metadata
-    for tag in soup(["script", "style", "noscript"]):
-        tag.decompose()
+    try:
+        response = httpx.get(URL, headers=headers, timeout=20)
+        response.raise_for_status()
+        print("✅ Site fetched successfully!")
+        return response.text.strip()
+    except httpx.HTTPStatusError as e:
+        print(f"⚠️ HTTP Error: {e}")
+        print("🔄 Retrying in 60 seconds with alternate headers...")
+        time.sleep(60)
+        return get_clean_text()
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
+        time.sleep(60)
+        return get_clean_text()
 
-    # Extract visible text only
-    text = soup.get_text(separator=" ", strip=True)
-    return text
-
-# === Initial fetch ===
-old_data = get_clean_text()
 print("🔍 Monitoring started...")
 
-# === Continuous Monitoring ===
+old_data = get_clean_text()
+
 while True:
-    time.sleep(60)  # check every 60 seconds
+    time.sleep(CHECK_INTERVAL)
     new_data = get_clean_text()
 
-    if old_data== new_data:
-        print("✅ No visible changes detected.")
-    else:
-        print("⚠️ Real change detected! Sending alert email...")
-
-        # === Send Email ===
-        message = MIMEMultipart("alternative")
-        message["Subject"] = "⚠️ SIH Website Updated!"
-        message["From"] = SENDER_EMAIL
-        message["To"] = RECEIVER_EMAIL
-        text = f"The visible content on the SIH website has changed.\n\nURL: {url}"
-        message.attach(MIMEText(text, "plain"))
-
-        try:
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-                server.login(SENDER_EMAIL, APP_PASSWORD)
-                server.sendmail(SENDER_EMAIL, RECEIVER_EMAIL, message.as_string())
-            print("📧 Email alert sent successfully!")
-        except Exception as e:
-            print("❌ Failed to send email:", e)
-
-        # Update stored data
+    if new_data != old_data:
+        print("⚠️ Changes detected! Sending alert email...")
+        send_email_alert()
         old_data = new_data
