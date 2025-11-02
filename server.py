@@ -3,6 +3,19 @@ import time
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+class SimpleHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Web Monitor Running")
+
+def run_server():
+    HTTPServer(("0.0.0.0", 10000), SimpleHandler).serve_forever()
+
+threading.Thread(target=run_server, daemon=True).start()
 
 URL = "https://sih.gov.in/"
 CHECK_INTERVAL = 300  # seconds (5 minutes)
